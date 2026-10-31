@@ -1,0 +1,2010 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>บันทึกการใช้น้ำมันเชื้อเพลิงและน้ำป้อนหม้อไอน้ำ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f3f4f6;
+            margin-bottom: 40px; /* Space for marquee */
+        }
+        .form-container {
+            width: 100%;
+            max-width: 1250px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: separate; /* แก้อาการช่องโหว่ของ Sticky Header */
+            border-spacing: 0;
+            border: 2px solid #000;
+        }
+        th, td {
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 13px;
+        }
+        /* ชดเชยขอบที่หายไปจากการใช้ border-collapse: separate */
+        th:first-child, td:first-child { border-left: 1px solid #000; }
+        thead tr:first-child th { border-top: 1px solid #000; }
+
+        th {
+            background-color: #f8fafc;
+        }
+        .editable-cell {
+            cursor: pointer;
+            transition: background-color 0.2s;
+            height: 28px;
+        }
+        .editable-cell:hover {
+            background-color: #e0f2fe;
+        }
+        .readonly-cell {
+            background-color: #f1f5f9;
+            color: #475569;
+        }
+        
+        /* เพิ่ม Sticky Header เฉพาะคอลัมน์ตาราง */
+        .col-header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background-color: #f3f4f6 !important;
+            box-shadow: inset 0 2px 0 #000, 0 1px 0 #000; /* สร้างเส้นขอบทับรอยต่อ */
+        }
+        .sub-header {
+            position: sticky;
+            top: 45px; /* ปรับระดับความสูงให้พอดีกับแถวแรก */
+            z-index: 19;
+            background-color: #e5e7eb !important;
+            box-shadow: 0 1px 0 #000;
+        }
+        
+        /* พิมพ์ PDF */
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+        
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        @media print {
+            body { background-color: #fff; margin: 0; padding: 0; }
+            .form-container { box-shadow: none; max-width: 100%; padding: 0; }
+            .no-print { display: none !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .marquee-footer { display: none !important; }
+        }
+
+        /* Marquee Footer */
+        .marquee-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #fff;
+            color: #16a34a; /* text-green-600 */
+            font-weight: bold;
+            border-top: 2px solid #16a34a;
+            padding: 8px 0;
+            z-index: 40;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .marquee-content {
+            display: inline-block;
+            padding-left: 100%;
+            animation: marquee 20s linear infinite;
+        }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+    </style>
+</head>
+<body class="p-2 sm:p-6">
+
+<!-- Welcome/Login View -->
+<div id="welcomeView" class="fixed inset-0 z-[100] flex items-center justify-center bg-cover bg-center" style="background-image: url('https://i.postimg.cc/L8KLPCd6/255053.jpg');">
+    <div class="absolute inset-0 bg-white/30 backdrop-blur-sm"></div>
+    <div class="relative z-10 bg-white/95 p-8 rounded-2xl shadow-2xl text-center max-w-md w-[90%] border-4 border-green-600">
+        <img src="https://i.postimg.cc/FFbgrxtC/message-Image-1787986866051-Copy.jpg" alt="Logo" class="h-24 mx-auto mb-6 object-contain">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">ระบบบันทึกข้อมูล PE (Utility)</h1>
+        <p class="text-gray-600 mb-8 font-medium">บันทึกการใช้น้ำมันเชื้อเพลิงและน้ำป้อนหม้อไอน้ำ</p>
+        <button onclick="startApp()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-transform transform hover:scale-105 text-lg">
+            เริ่มใช้งานระบบ (Start)
+        </button>
+    </div>
+</div>
+
+<div id="mainView" class="form-container rounded-lg hidden">
+    
+    <!-- Controls (No Print) -->
+    <div class="no-print flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-3">
+            <span id="ui-title" data-i18n="sysTitle">ระบบบันทึกข้อมูล PE (Utility)</span>
+            <span id="syncStatus" class="text-xs font-medium px-2 py-1 rounded-full hidden"></span>
+        </h2>
+        
+        <div class="flex gap-2 flex-wrap justify-center">
+            <button onclick="toggleView('dashboard')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded shadow transition-colors flex items-center gap-2 text-sm font-bold">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                <span>Dashboard</span>
+            </button>
+            <button onclick="showModal('guideModal')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow transition-colors flex items-center gap-2 text-sm font-bold">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                <span data-i18n="guideBtn">คู่มือการใช้งาน</span>
+            </button>
+            <button onclick="showModal('excelModal')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow transition-colors flex items-center gap-2 text-sm font-bold">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4zm2 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 4a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 4a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
+                <span>Excel</span>
+            </button>
+            <button onclick="printPDF()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow transition-colors flex items-center gap-2 text-sm font-bold">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002-2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"></path></svg>
+                <span data-i18n="btnPrint">พิมพ์ PDF</span>
+            </button>
+            <button id="langToggle" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition-colors text-sm font-bold">
+                EN
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Table Form -->
+    <div class="overflow-x-auto overflow-y-auto relative" style="max-height: 70vh;">
+        <table id="mainTable">
+            <thead class="bg-white">
+                <!-- Header Row 1 -->
+                <tr>
+                    <th colspan="3" class="p-2 border-b-0">
+                        <div class="flex items-center justify-center mb-1 w-full p-2 h-20">
+                            <img src="https://i.postimg.cc/FFbgrxtC/message-Image-1787986866051-Copy.jpg" alt="Able Medical Logo" class="max-w-full max-h-full object-contain">
+                        </div>
+                        <div class="border-b border-green-800 mx-4 my-1"></div>
+                        <div class="font-bold text-base mt-1">Form</div>
+                    </th>
+                    <th colspan="7" class="font-bold text-lg p-2" data-i18n="docTitle">
+                        บันทึกการใช้น้ำมันเชื้อเพลิงและน้ำป้อนหม้อไอน้ำ<br>
+                        <span class="text-sm font-normal">Record of fuel oil consumption and Boiler feed water</span>
+                    </th>
+                    <th colspan="1" class="font-normal text-xs p-2">
+                        <span data-i18n="page">หน้า</span><br>1 / 1
+                    </th>
+                </tr>
+
+                <!-- Header Row 2 -->
+                <tr>
+                    <td colspan="3" class="p-1 text-xs">Code no : FM-PE-043</td>
+                    <td colspan="7" class="p-1 text-xs">Effective date : 31/01/2026</td>
+                    <td colspan="1" class="p-1 text-xs">Rev. 03</td>
+                </tr>
+
+                <!-- Header Row 3 (Month / Year / Fuel Price) -->
+                <tr>
+                    <td colspan="11" class="p-3 text-sm text-left px-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-center w-full">
+                            <div>
+                                <span data-i18n="recordFor">บันทึกข้อมูลประจำเดือน</span> 
+                                <select id="monthSelect" class="border-b border-dashed border-gray-600 outline-none bg-transparent mx-2 text-center text-blue-700 font-semibold cursor-pointer appearance-none"></select>
+                                <span data-i18n="year">ปี</span> 
+                                <select id="yearSelect" class="border-b border-dashed border-gray-600 outline-none bg-transparent mx-2 text-center text-blue-700 font-semibold cursor-pointer appearance-none"></select>
+                            </div>
+                            <div class="mt-2 sm:mt-0 font-bold">
+                                <span class="text-gray-700" data-i18n="fuelPriceText">ราคาต่อหน่วยเชื้อเพลิง (บาท/ลิตร) :</span>
+                                <button onclick="openPriceModal()" class="ml-2 px-3 py-1 bg-yellow-100 hover:bg-yellow-200 text-blue-800 border border-yellow-300 rounded shadow-sm transition">
+                                    <span id="displayFuelPrice">0</span> ฿
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Column Headers -->
+                <tr class="bg-gray-100">
+                    <th rowspan="2" class="w-12 py-2 col-header" data-i18n="date">วันที่<br>(Date)</th>
+                    <th rowspan="2" class="w-16 py-2 col-header" data-i18n="time">เวลา<br>(Time)</th>
+                    <th colspan="3" class="py-1 col-header" data-i18n="fuelCons">การใช้น้ำมันเชื้อเพลิง<br>(Fuel oil consumption)</th>
+                    <th colspan="2" class="w-1/4 py-1 col-header" data-i18n="waterCons">ปริมาณน้ำป้อนหม้อไอน้ำ<br>(Boiler feed water)</th>
+                    <th colspan="2" class="w-1/6 py-1 col-header" data-i18n="remainFuel">น้ำมันคงเหลือ (ลิตร)<br>(Remaining fuel oil)</th>
+                    <th rowspan="2" class="w-24 py-2 col-header" data-i18n="recordBy">ผู้บันทึก<br>(Record By)</th>
+                    <th rowspan="2" class="w-12 py-2 col-header" data-i18n="tools">ประแจ<br>(Remark)</th>
+                </tr>
+                <tr class="bg-gray-100">
+                    <th class="py-1 w-20 text-xs sub-header" data-i18n="meter">มิเตอร์<br>(Meter)</th>
+                    <th class="py-1 w-20 text-xs sub-header" data-i18n="usageDay">ปริมาณที่ใช้/วัน<br>(Amount/day)</th>
+                    <th class="py-1 w-24 text-xs sub-header" data-i18n="fuelCost">ต้นทุน/วัน<br>(Cost)</th>
+                    <th class="py-1 w-24 text-xs sub-header" data-i18n="meter">มิเตอร์<br>(Meter)</th>
+                    <th class="py-1 w-24 text-xs sub-header" data-i18n="usageDay">ปริมาณที่ใช้/วัน<br>(Amount/day)</th>
+                    <th class="py-1 w-20 text-xs sub-header" data-i18n="tank1">ถัง 1 (Tank 1)</th>
+                    <th class="py-1 w-20 text-xs sub-header" data-i18n="tank2">ถัง 2 (Tank 2)</th>
+                </tr>
+            </thead>
+
+            <!-- Data Rows will be injected here via JS -->
+            <tbody id="data-rows"></tbody>
+
+            <!-- Footer / Remark Section -->
+            <tfoot>
+                <tr>
+                    <td colspan="11" class="text-left p-4 align-top border-b-2 border-black">
+                        <div class="flex flex-col gap-6">
+                            <div class="w-full">
+                                <div class="font-bold mb-2 text-sm" data-i18n="remarkSection">หมายเหตุ (Remark) :</div>
+                                <textarea class="w-full text-red-600 font-bold text-sm border border-dashed border-gray-300 p-2 rounded resize-none focus:outline-none focus:border-red-500 bg-transparent print:border-none print:p-0" rows="3" placeholder="..."></textarea>
+                            </div>
+                            
+                            <!-- Signatures (Moved to bottom left) -->
+                            <table class="w-80 border-collapse no-print-border self-start">
+                                <tr>
+                                    <th class="border border-black p-2 font-bold bg-gray-50" data-i18n="checkedBy">ผู้ตรวจสอบ (Checked By)</th>
+                                    <th class="border border-black p-2 font-bold bg-gray-50" data-i18n="approvedBy">ผู้อนุมัติ (Approved By)</th>
+                                </tr>
+                                <tr>
+                                    <td class="border border-black h-20 relative editable-cell bg-white" onclick="openSignatureModal('checked')">
+                                        <div class="absolute inset-0 flex items-center justify-center text-gray-300 text-xs hover:text-blue-500" id="hint-checked">คลิกเพื่อเซ็น (Click to sign)</div>
+                                        <img id="img-checked" class="absolute inset-0 w-full h-full object-contain p-1 hidden" src="">
+                                    </td>
+                                    <td class="border border-black h-20 relative editable-cell bg-white" onclick="openSignatureModal('approved')">
+                                        <div class="absolute inset-0 flex items-center justify-center text-gray-300 text-xs hover:text-blue-500" id="hint-approved">คลิกเพื่อเซ็น (Click to sign)</div>
+                                        <img id="img-approved" class="absolute inset-0 w-full h-full object-contain p-1 hidden" src="">
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- ปุ่มออกจากระบบ -->
+    <div class="flex justify-center mt-6 mb-4 no-print">
+        <button onclick="logoutApp()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg shadow-md font-bold flex items-center gap-2 transition-transform transform hover:scale-105">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            ออกจากระบบ (Logout)
+        </button>
+    </div>
+</div>
+
+<!-- Dashboard View -->
+<div id="dashboardView" class="hidden form-container rounded-lg no-print">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <h2 class="text-2xl font-bold text-gray-800">Dashboard & Analytics</h2>
+        <button onclick="toggleView('main')" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded shadow transition-colors flex items-center gap-2 text-sm font-bold w-full md:w-auto justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            กลับหน้าบันทึก (Back)
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-4 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
+        <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">รูปแบบกราฟ (View By)</label>
+            <select id="dashType" onchange="renderDashboard()" class="border-2 border-gray-300 rounded px-3 py-1.5 text-sm font-bold text-blue-700 outline-none cursor-pointer w-full">
+                <option value="monthly">รายเดือน (Monthly Summary)</option>
+                <option value="daily">รายวัน (Daily Detail)</option>
+            </select>
+        </div>
+        <div id="dashMonthContainer" class="hidden">
+            <label class="block text-xs font-bold text-gray-600 mb-1">เดือน (Month)</label>
+            <select id="dashMonth" onchange="renderDashboard()" class="border-2 border-gray-300 rounded px-3 py-1.5 text-sm font-bold text-blue-700 outline-none cursor-pointer w-full"></select>
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">ปี (Year)</label>
+            <select id="dashYear" onchange="renderDashboard()" class="border-2 border-gray-300 rounded px-3 py-1.5 text-sm font-bold text-blue-700 outline-none cursor-pointer w-full"></select>
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">เป้าหมายน้ำมัน (Target/วัน)</label>
+            <input type="number" id="dashTargetFuel" value="500" onchange="renderDashboard()" class="border-2 border-gray-300 rounded px-3 py-1.5 text-sm font-bold text-blue-700 outline-none w-24 md:w-32">
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">เป้าหมายน้ำ (Target/วัน)</label>
+            <input type="number" id="dashTargetWater" value="50" onchange="renderDashboard()" class="border-2 border-gray-300 rounded px-3 py-1.5 text-sm font-bold text-blue-700 outline-none w-24 md:w-32">
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl p-5 text-white shadow-lg relative overflow-hidden">
+            <div class="relative z-10">
+                <p class="text-blue-100 text-sm font-bold mb-1">ปริมาณการใช้น้ำมันรวม</p>
+                <h3 class="text-3xl md:text-4xl font-black" id="dashTotalFuel">0 <span class="text-sm md:text-base font-normal">ลิตร</span></h3>
+            </div>
+            <svg class="absolute -bottom-4 -right-4 w-28 h-28 text-blue-400 opacity-40 transform rotate-12" fill="currentColor" viewBox="0 0 20 20"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm12 12H3V5h14v10z" clip-rule="evenodd"/></svg>
+        </div>
+        <div class="bg-gradient-to-br from-green-500 to-emerald-700 rounded-xl p-5 text-white shadow-lg relative overflow-hidden">
+            <div class="relative z-10">
+                <p class="text-green-100 text-sm font-bold mb-1">ต้นทุนเชื้อเพลิงรวม</p>
+                <h3 class="text-3xl md:text-4xl font-black" id="dashTotalCost">0 <span class="text-sm md:text-base font-normal">บาท</span></h3>
+            </div>
+            <svg class="absolute -bottom-4 -right-4 w-28 h-28 text-green-400 opacity-40 transform -rotate-12" fill="currentColor" viewBox="0 0 20 20"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>
+        </div>
+        <div class="bg-gradient-to-br from-cyan-500 to-teal-600 rounded-xl p-5 text-white shadow-lg relative overflow-hidden">
+            <div class="relative z-10">
+                <p class="text-cyan-100 text-sm font-bold mb-1">ปริมาณน้ำป้อนรวม</p>
+                <h3 class="text-3xl md:text-4xl font-black" id="dashTotalWater">0 <span class="text-sm md:text-base font-normal">คิว</span></h3>
+            </div>
+            <svg class="absolute -bottom-4 -right-4 w-28 h-28 text-cyan-400 opacity-40 transform rotate-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.94 6.412A2 2 0 002 8.108V16a2 2 0 002 2h12a2 2 0 002-2V8.108a2 2 0 00-.94-1.696l-6-3.75a2 2 0 00-2.12 0l-6 3.75zm2.615 2.423a1 1 0 10-1.11 1.664l5 3.333a1 1 0 001.11 0l5-3.333a1 1 0 00-1.11-1.664L10 11.798 5.555 8.835z" clip-rule="evenodd"/></svg>
+        </div>
+    </div>
+
+    <!-- Chart Container -->
+    <div class="bg-white p-4 md:p-6 rounded-xl border border-gray-200 shadow-md relative w-full" style="height: 55vh; min-height: 400px;">
+        <canvas id="mainChart"></canvas>
+    </div>
+</div>
+
+<!-- Marquee Footer -->
+<div class="marquee-footer no-print">
+    <div class="marquee-content" data-i18n="marqueeText">
+        ใช้ภายใน บริษัท เอเบิ้ล เมดิคอล จำกัด เท่านั้น พัฒนาโดย PE Utility
+    </div>
+</div>
+
+<!-- ================= MODALS ================= -->
+
+<!-- 1. Data Entry Modal -->
+<div id="entryModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 transition-opacity">
+    <div class="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] border-2 border-gray-800 p-6 w-[90%] max-w-sm transform scale-95 transition-transform" id="entryModalContent">
+        <h3 class="text-lg font-bold text-gray-800 mb-1" id="modalTitle">กรอกข้อมูล</h3>
+        <p class="text-sm text-gray-500 mb-4 font-semibold" id="modalSubtitle">วันที่ --</p>
+        
+        <div id="modalError" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-2 mb-4 text-sm" role="alert">
+            <p id="modalErrorText">Error message</p>
+        </div>
+
+        <div class="mb-5">
+            <div id="inputGroupNumber" class="hidden">
+                <div class="relative">
+                    <input type="number" step="1" min="0" id="inputValueNumber" 
+                        class="w-full border-2 border-gray-400 rounded-lg pl-4 pr-12 py-2 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 text-xl text-center font-bold text-blue-700 shadow-inner"
+                        placeholder="0">
+                    <button onclick="startDictation()" class="absolute right-2 top-2 text-gray-400 hover:text-blue-600 transition p-1" title="พูดตัวเลข (Voice Input)">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div id="inputGroupTime" class="hidden">
+                <select id="inputValueTime" class="w-full border-2 border-gray-400 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 text-xl text-center font-bold text-blue-700 shadow-inner cursor-pointer">
+                </select>
+            </div>
+
+            <div id="inputGroupSelect" class="hidden">
+                <select id="inputValueSelect" onchange="handleSelectChange()" class="w-full border-2 border-gray-400 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 text-lg text-center font-bold text-blue-700 shadow-inner cursor-pointer mb-2">
+                    <option value="">-- เลือกผู้บันทึก --</option>
+                </select>
+                <input type="text" id="customNameInput" class="hidden w-full border-2 border-gray-400 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200 text-center font-bold text-blue-700 shadow-inner" placeholder="ระบุชื่อ (Type name)">
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center gap-2">
+            <button onclick="clearCurrentData()" class="px-4 py-2 bg-red-100 border border-red-300 text-red-600 rounded-lg hover:bg-red-200 transition text-sm font-medium" data-i18n="btnClear">ลบ</button>
+            <div class="flex gap-2">
+                <button onclick="closeModal('entryModal')" class="px-4 py-2 bg-gray-200 border border-gray-400 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium" data-i18n="btnCancel">ยกเลิก</button>
+                <button onclick="saveData()" class="px-4 py-2 bg-blue-600 border border-blue-800 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm font-medium" data-i18n="btnSave">บันทึก</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Remark Modal -->
+<div id="remarkModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 transition-opacity">
+    <div class="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] border-2 border-gray-800 p-6 w-[90%] max-w-md transform scale-95 transition-transform" id="remarkModalContent">
+        <h3 class="text-lg font-bold text-gray-800 mb-1" id="remarkModalTitle">ข้อมูลเพิ่มเติม / หมายเหตุ</h3>
+        <p class="text-sm text-gray-500 mb-4 font-semibold" id="remarkModalSubtitle">วันที่ --</p>
+
+        <div class="mb-4">
+            <label class="block text-sm font-bold text-gray-700 mb-1" data-i18n="labelRemark">หมายเหตุ (กรณีมีปัญหา)</label>
+            <textarea id="remarkText" rows="3" class="w-full border-2 border-gray-300 rounded-lg p-2 focus:outline-none focus:border-red-500 text-sm font-bold text-red-600 shadow-inner resize-none"></textarea>
+        </div>
+
+        <div class="mb-5">
+            <label class="block text-sm font-bold text-gray-700 mb-1" data-i18n="labelCorrection">การแก้ไข (Action Taken)</label>
+            <textarea id="correctionText" rows="3" class="w-full border-2 border-gray-300 rounded-lg p-2 focus:outline-none focus:border-green-500 text-sm font-bold text-green-700 shadow-inner resize-none"></textarea>
+        </div>
+
+        <div class="flex justify-between items-center gap-2">
+            <button onclick="clearRemarkData()" class="px-4 py-2 bg-red-100 border border-red-300 text-red-600 rounded-lg hover:bg-red-200 transition text-sm font-medium" data-i18n="btnClearAll">ล้างข้อความ</button>
+            <div class="flex gap-2">
+                <button onclick="closeModal('remarkModal')" class="px-4 py-2 bg-gray-200 border border-gray-400 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium" data-i18n="btnCancel">ยกเลิก</button>
+                <button onclick="saveRemark()" class="px-4 py-2 bg-green-600 border border-green-800 text-white rounded-lg hover:bg-green-700 transition shadow-md text-sm font-medium" data-i18n="btnSave">บันทึก</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Alert Modal -->
+<div id="alertModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[60] transition-opacity">
+    <div class="bg-white rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] border-2 border-gray-800 p-6 w-[90%] max-w-sm text-center transform scale-95 transition-transform" id="alertModalContent">
+        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        <h3 class="text-lg leading-6 font-bold text-gray-900 mb-2" id="alertTitle">ข้อผิดพลาด (Error)</h3>
+        <p class="text-sm text-gray-500 mb-6" id="alertMessage">รายละเอียด</p>
+        <button onclick="closeModal('alertModal')" class="w-full inline-flex justify-center rounded-md border border-red-800 shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none transition">
+            ตกลง (OK)
+        </button>
+    </div>
+</div>
+
+<!-- 4. Names Management Modal -->
+<div id="namesModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[70] transition-opacity">
+    <div class="bg-white rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] border-2 border-gray-800 p-6 w-[90%] max-w-sm transform scale-95 transition-transform" id="namesModalContent">
+        <h3 class="text-lg font-bold text-gray-800 mb-4" data-i18n="manageNames">จัดการรายชื่อผู้บันทึก</h3>
+        
+        <div class="flex gap-2 mb-4">
+            <input type="text" id="newNameInput" class="flex-1 border-2 border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="เพิ่มชื่อใหม่...">
+            <button onclick="addNewName()" class="bg-blue-600 border border-blue-800 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-blue-700">เพิ่ม</button>
+        </div>
+
+        <ul id="customNamesList" class="max-h-48 overflow-y-auto mb-4 border-2 border-gray-200 rounded-lg divide-y divide-gray-200">
+        </ul>
+
+        <div class="flex justify-end">
+            <button onclick="closeModal('namesModal'); openEntryModal(activeEdit.dayIndex, activeEdit.field);" class="px-4 py-2 bg-gray-200 border border-gray-400 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium">ปิด (Close)</button>
+        </div>
+    </div>
+</div>
+
+<!-- 5. Fuel Price Modal -->
+<div id="priceModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[55] transition-opacity">
+    <div class="bg-white rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] border-2 border-gray-800 p-6 w-[90%] max-w-sm transform scale-95 transition-transform" id="priceModalContent">
+        <h3 class="text-lg font-bold text-gray-800 mb-2" data-i18n="unitPriceTitle">ตั้งราคาเชื้อเพลิงประจำเดือน</h3>
+        <p class="text-sm text-gray-500 mb-4">ใช้สำหรับคำนวณต้นทุน/วัน (บาทต่อลิตร)</p>
+        
+        <div class="mb-5">
+            <input type="number" step="0.01" min="0" id="inputFuelPrice" 
+                class="w-full border-2 border-gray-400 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600 text-xl text-center font-bold text-blue-700 shadow-inner"
+                placeholder="0.00">
+        </div>
+
+        <div class="flex justify-end gap-2">
+            <button onclick="closeModal('priceModal')" class="px-4 py-2 bg-gray-200 border border-gray-400 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium" data-i18n="btnCancel">ยกเลิก</button>
+            <button onclick="saveFuelPrice()" class="px-4 py-2 bg-blue-600 border border-blue-800 text-white rounded-lg hover:bg-blue-700 transition shadow-md text-sm font-medium" data-i18n="btnSave">บันทึก</button>
+        </div>
+    </div>
+</div>
+
+<!-- 6. Signature Modal -->
+<div id="signatureModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[55] transition-opacity">
+    <div class="bg-white rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] border-2 border-gray-800 p-6 w-[90%] max-w-md transform scale-95 transition-transform" id="signatureModalContent">
+        <h3 class="text-lg font-bold text-gray-800 mb-2" data-i18n="sigTitle">ลงนาม (Signature)</h3>
+        
+        <div class="border-2 border-dashed border-gray-400 rounded-lg bg-gray-50 mb-4 relative" style="height: 150px;">
+            <canvas id="sigCanvas" class="absolute inset-0 w-full h-full cursor-crosshair touch-none"></canvas>
+        </div>
+
+        <div class="flex justify-between items-center gap-2">
+            <button onclick="clearSignatureCanvas()" class="px-4 py-2 bg-red-100 border border-red-300 text-red-600 rounded-lg hover:bg-red-200 transition text-sm font-medium" data-i18n="btnClearSig">ลบลายเซ็นต์</button>
+            <div class="flex gap-2">
+                <button onclick="closeModal('signatureModal')" class="px-4 py-2 bg-gray-200 border border-gray-400 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium" data-i18n="btnCancel">ยกเลิก</button>
+                <button onclick="saveSignature()" class="px-4 py-2 bg-green-600 border border-green-800 text-white rounded-lg hover:bg-green-700 transition shadow-md text-sm font-medium" data-i18n="btnSave">บันทึก</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 7. User Guide Modal -->
+<div id="guideModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[80] transition-opacity">
+    <div class="bg-white rounded-xl shadow-[0_10px_25px_rgba(0,0,0,0.5)] border-2 border-gray-800 p-6 w-[90%] max-w-lg max-h-[80vh] overflow-y-auto transform scale-95 transition-transform" id="guideModalContent">
+        <h3 class="text-xl font-bold text-gray-800 mb-4 border-b-2 border-indigo-500 pb-2" data-i18n="guideBtn">คู่มือการใช้งาน</h3>
+        
+        <div class="text-sm text-gray-700 space-y-3 font-medium">
+            <p>1. <b>การเลือกเดือน/ปี:</b> ข้อมูลจะถูกจัดเก็บแยกกันในแต่ละเดือน หากสลับเดือน ข้อมูลจะถูกโหลดตามเดือนนั้นๆ</p>
+            <p>2. <b>การกรอกข้อมูล:</b> คลิกที่ช่องในตารางเพื่อเปิดหน้าต่างกรอกข้อมูล ท่านสามารถพิมพ์ตัวเลข หรือกดปุ่ม 🎤 เพื่อพูดตัวเลขได้ (เฉพาะตัวเลขเต็มไม่มีทศนิยม)</p>
+            <p>3. <b>การคำนวณอัตโนมัติ:</b> <br>- ปริมาณที่ใช้/วัน จะคำนวณจาก (มิเตอร์วันถัดไป - มิเตอร์วันนี้)<br>- ต้นทุนเชื้อเพลิง/วัน จะคำนวณจาก (ปริมาณที่ใช้ x ราคาต่อหน่วย)</p>
+            <p>4. <b>ราคาต่อหน่วย:</b> สามารถตั้งค่าได้ที่ปุ่มด้านบนขวาของตาราง (ราคาต่อหน่วยจะแยกตามแต่ละเดือน)</p>
+            <p>5. <b>หมายเหตุ (ประแจ):</b> หากคลิกไอคอนประแจท้ายแถว สามารถกรอกปัญหาและการแก้ไขได้ เมื่อกรอกแล้วประแจจะเปลี่ยนเป็น <span class="text-red-600 font-bold">สีแดง</span></p>
+            <p>6. <b>การเซ็นอนุมัติ:</b> คลิกที่กล่องผู้ตรวจสอบ/ผู้อนุมัติ เพื่อวาดลายเซ็นต์ลงไปได้โดยตรง</p>
+            <p>7. <b>พิมพ์เอกสาร:</b> กดปุ่ม พิมพ์ PDF ระบบจะจัดหน้ากระดาษแนวตั้ง A4 พร้อมพิมพ์ทันที</p>
+        </div>
+
+        <div class="mt-6 flex justify-end">
+            <button onclick="closeModal('guideModal')" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow text-sm font-bold border border-indigo-800">เข้าใจแล้ว (Got it)</button>
+        </div>
+    </div>
+</div>
+
+<!-- 8. Excel Login Modal -->
+<div id="excelModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[90] transition-opacity">
+    <div class="bg-white rounded-xl shadow-2xl border-2 border-gray-800 p-6 w-[90%] max-w-sm transform scale-95 transition-transform" id="excelModalContent">
+        <h3 class="text-xl font-bold text-green-700 mb-4 flex items-center gap-2">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4zm2 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 4a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 4a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
+            เปิดหน้า Google Sheet
+        </h3>
+        <div id="excelError" class="hidden text-red-600 text-sm font-bold mb-3 bg-red-100 p-2 rounded">รหัสผ่านไม่ถูกต้อง!</div>
+        <div class="mb-3">
+            <label class="block text-sm font-bold text-gray-700 mb-1">ID:</label>
+            <input type="text" id="excelId" class="w-full border-2 border-gray-300 rounded-lg p-2 focus:outline-none focus:border-green-500 uppercase" placeholder="PEUT">
+        </div>
+        <div class="mb-5">
+            <label class="block text-sm font-bold text-gray-700 mb-1">Password:</label>
+            <input type="password" id="excelPass" class="w-full border-2 border-gray-300 rounded-lg p-2 focus:outline-none focus:border-green-500" placeholder="Admin444">
+        </div>
+        <div class="flex justify-end gap-2">
+            <button onclick="closeModal('excelModal')" class="px-4 py-2 bg-gray-200 border border-gray-400 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium">ยกเลิก</button>
+            <button onclick="verifyExcelLogin()" class="px-4 py-2 bg-green-600 border border-green-800 text-white rounded-lg hover:bg-green-700 transition shadow-md text-sm font-medium">เข้าสู่ระบบ</button>
+        </div>
+    </div>
+</div>
+
+<!-- 9. Now Totals Modal (Easter Egg) -->
+<div id="nowModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden z-[100] transition-opacity">
+    <div class="bg-gradient-to-br from-indigo-900 to-purple-800 rounded-xl shadow-2xl border-4 border-indigo-400 p-6 w-[90%] max-w-sm text-center transform scale-95 transition-transform" id="nowModalContent">
+        <h3 class="text-2xl font-black text-yellow-400 mb-2">ยอดสะสมเดือนนี้</h3>
+        <p class="text-indigo-200 text-sm mb-6 font-bold" id="nowMonthLabel">--</p>
+        
+        <div class="space-y-4">
+            <div class="bg-white/10 rounded-lg p-3 backdrop-blur-sm border border-white/20 shadow-inner">
+                <div class="text-indigo-200 text-xs font-bold mb-1">น้ำมันเชื้อเพลิงสะสม (ลิตร)</div>
+                <div class="text-4xl font-black text-white" id="nowFuel">0</div>
+            </div>
+            <div class="bg-white/10 rounded-lg p-3 backdrop-blur-sm border border-white/20 shadow-inner">
+                <div class="text-indigo-200 text-xs font-bold mb-1">น้ำป้อนหม้อไอน้ำสะสม (คิว)</div>
+                <div class="text-4xl font-black text-cyan-300" id="nowWater">0</div>
+            </div>
+            <div class="bg-white/10 rounded-lg p-3 backdrop-blur-sm border border-white/20 shadow-inner">
+                <div class="text-indigo-200 text-xs font-bold mb-1">ต้นทุนเชื้อเพลิงรวม (บาท)</div>
+                <div class="text-4xl font-black text-green-400" id="nowCost">0</div>
+            </div>
+        </div>
+        
+        <button onclick="closeModal('nowModal')" class="mt-6 w-full inline-flex justify-center rounded-lg border border-transparent shadow-md px-4 py-3 bg-indigo-500 hover:bg-indigo-400 text-base font-bold text-white transition-transform transform hover:scale-105">
+            ปิดหน้าต่าง (Close)
+        </button>
+    </div>
+</div>
+
+<script>
+    // ================= DATA STATE =================
+    let currentLang = 'th';
+    const GAS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzKMe-2lz1amAZi-kmQvtRkBzoABOSqYrYYsT21Hn2kM_ab7oMg2ETiUEzrXXVdjMy3gg/exec";
+    
+    // Core Application Data (Separated by Month/Year)
+    // Structure: { "2026-0": { records: [], fuelUnitPrice: 0, signatures: {checked: '', approved: ''} }, ... }
+    let allData = {};
+    
+    let currentPeriod = ''; // format: "YYYY-MM"
+    let records = [];
+    let numDays = 31;
+    let currentFuelPrice = 0;
+    let currentSignatures = { checked: '', approved: '' };
+    
+    let customRecordNames = []; // user added names
+    let activeEdit = { dayIndex: null, field: null };
+    let activeSigType = ''; // 'checked' or 'approved'
+    
+    const recordByOptions = {
+        th: ["ดิน", "ดุ๊ก", "เอ", "โจ", "แม็ก"],
+        en: ["Din", "Duk", "A", "Jo", "Max"]
+    };
+
+    // ================= TRANSLATIONS =================
+    const translations = {
+        th: {
+            sysTitle: "ระบบบันทึกข้อมูล PE (Utility)",
+            marqueeText: "ใช้ภายใน บริษัท เอเบิ้ล เมดิคอล จำกัด เท่านั้น พัฒนาโดย PE Utility",
+            guideBtn: "คู่มือการใช้งาน",
+            toggleBtn: "EN",
+            btnPrint: "พิมพ์ PDF",
+            total: "รวม (Total)",
+            nextMonth: "เดือนถัดไป",
+            manageNames: "จัดการรายชื่อผู้บันทึก",
+            docTitle: "บันทึกการใช้น้ำมันเชื้อเพลิงและน้ำป้อนหม้อไอน้ำ<br><span class='text-sm font-normal'>Record of fuel oil consumption and Boiler feed water</span>",
+            page: "หน้า",
+            recordFor: "บันทึกข้อมูลประจำเดือน",
+            year: "ปี",
+            fuelPriceText: "ราคาต่อหน่วยเชื้อเพลิง (บาท/ลิตร) :",
+            unitPriceTitle: "ตั้งราคาเชื้อเพลิงประจำเดือน",
+            date: "วันที่",
+            time: "เวลา",
+            fuelCons: "การใช้น้ำมันเชื้อเพลิง",
+            waterCons: "ปริมาณน้ำป้อนหม้อไอน้ำ",
+            remainFuel: "น้ำมันคงเหลือ (ลิตร)",
+            meter: "มิเตอร์",
+            usageDay: "ปริมาณที่ใช้/วัน",
+            fuelCost: "ต้นทุน/วัน<br>(Cost)",
+            tank1: "ถัง 1",
+            tank2: "ถัง 2",
+            recordBy: "ผู้บันทึก",
+            tools: "เครื่องมือ",
+            remarkSection: "หมายเหตุ (Remark) :",
+            checkedBy: "ผู้ตรวจสอบ (Checked By)",
+            approvedBy: "ผู้อนุมัติ (Approved By)",
+            sigTitle: "ลงนาม (Signature)",
+            btnClearSig: "ลบลายเซ็นต์",
+            btnCancel: "ยกเลิก",
+            btnSave: "บันทึก",
+            btnClear: "ลบ",
+            btnClearAll: "ล้างข้อความ",
+            labelRemark: "หมายเหตุ (กรณีมีปัญหา)",
+            labelCorrection: "การแก้ไข (Action Taken)",
+            errTitle: "ข้อผิดพลาด (Error)",
+            errNotNum: "กรุณากรอกตัวเลขจำนวนเต็มที่ถูกต้อง",
+            errNegative: "ค่าไม่สามารถติดลบได้",
+            errLessPrev: "ค่ามิเตอร์น้อยกว่าวันก่อนหน้า",
+            errMoreNext: "ค่ามิเตอร์มากกว่าวันถัดไปที่มีการบันทึกไว้",
+            modalEnterData: "กรอกข้อมูล:",
+            months: ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"],
+            dayPrefix: "วันที่ "
+        },
+        en: {
+            sysTitle: "PE (Utility) Recording System",
+            marqueeText: "For internal use at Able Medical Co., Ltd. Developed by PE Utility.",
+            guideBtn: "User Guide",
+            toggleBtn: "TH",
+            btnPrint: "Print PDF",
+            total: "Total",
+            nextMonth: "Next Mth",
+            manageNames: "Manage Record Names",
+            docTitle: "Record of fuel oil consumption and Boiler feed water<br><span class='text-sm font-normal'>บันทึกการใช้น้ำมันเชื้อเพลิงและน้ำป้อนหม้อไอน้ำ</span>",
+            page: "Page",
+            recordFor: "Record for Month",
+            year: "Year",
+            fuelPriceText: "Fuel Unit Price (THB/L) :",
+            unitPriceTitle: "Set Fuel Unit Price",
+            date: "Date",
+            time: "Time",
+            fuelCons: "Fuel oil consumption",
+            waterCons: "Boiler feed water",
+            remainFuel: "Remaining fuel oil (L)",
+            meter: "Meter",
+            usageDay: "Amount / day",
+            fuelCost: "Cost/day<br>(Cost)",
+            tank1: "Tank 1",
+            tank2: "Tank 2",
+            recordBy: "Record By",
+            tools: "Tools",
+            remarkSection: "Remark :",
+            checkedBy: "Checked By",
+            approvedBy: "Approved By",
+            sigTitle: "Signature",
+            btnClearSig: "Clear Signature",
+            btnCancel: "Cancel",
+            btnSave: "Save",
+            btnClear: "Clear",
+            btnClearAll: "Clear text",
+            labelRemark: "Remark (In case of issue)",
+            labelCorrection: "Correction (Action Taken)",
+            errTitle: "Error",
+            errNotNum: "Please enter a valid whole number.",
+            errNegative: "Value cannot be negative.",
+            errLessPrev: "Meter value cannot be less than the previous recorded day.",
+            errMoreNext: "Meter value cannot exceed the next recorded day.",
+            modalEnterData: "Enter Data:",
+            months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+            dayPrefix: "Day "
+        }
+    };
+
+    function t(key) {
+        return translations[currentLang][key];
+    }
+
+    // ================= INITIALIZATION =================
+    document.addEventListener("DOMContentLoaded", () => {
+        initDropdowns();
+        switchPeriod(); // This initializes data for the first selected month
+        generateTimeSelectOptions();
+        initSignatureCanvas();
+        
+        // Language Toggle Listener
+        document.getElementById('langToggle').addEventListener('click', () => {
+            currentLang = currentLang === 'th' ? 'en' : 'th';
+            document.getElementById('langToggle').innerText = t('toggleBtn');
+            updateStaticText();
+            updateDropdownsLang(); // Updates month names and BE/CE years
+            renderTable(); // Re-render to update tooltips and table texts
+        });
+
+        // Listen for Month/Year changes to switch active data
+        document.getElementById('monthSelect').addEventListener('change', switchPeriod);
+        document.getElementById('yearSelect').addEventListener('change', switchPeriod);
+    });
+
+    function getSelectedPeriodKey() {
+        const y = document.getElementById('yearSelect').value;
+        const m = document.getElementById('monthSelect').value;
+        return `${y}-${m}`;
+    }
+
+    // Called when the user clicks Start on the welcome screen
+    function startApp() {
+        document.getElementById('welcomeView').classList.add('hidden');
+        document.getElementById('mainView').classList.remove('hidden');
+        
+        initDropdowns();
+        switchPeriod(); 
+        generateTimeSelectOptions();
+        initSignatureCanvas();
+        
+        // Initial setup for language
+        updateStaticText();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Initialization moved to startApp() to ensure correct loading when screen is visible
+        
+        // Language Toggle Listener
+        document.getElementById('yearSelect').addEventListener('change', switchPeriod);
+    });
+
+    function saveCurrentPeriodData() {
+        if (currentPeriod) {
+            allData[currentPeriod] = {
+                records: JSON.parse(JSON.stringify(records)), // deep copy
+                fuelUnitPrice: currentFuelPrice,
+                signatures: { ...currentSignatures }
+            };
+            syncDataToCloud(currentPeriod);
+        }
+    }
+
+    async function syncDataToCloud(period) {
+        if (!period) return;
+        const syncLabel = document.getElementById('syncStatus');
+        syncLabel.classList.remove('hidden');
+        syncLabel.textContent = "กำลังซิงค์...";
+        syncLabel.className = "text-xs font-medium px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 ml-3 transition-opacity";
+        
+        try {
+            const payload = {
+                action: 'save',
+                period: period,
+                data: allData[period]
+            };
+            await fetch(GAS_WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(payload)
+            });
+            console.log("Synced to cloud:", period);
+            syncLabel.textContent = "ซิงค์แล้ว";
+            syncLabel.className = "text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-700 ml-3 transition-opacity";
+            
+            setTimeout(() => {
+                syncLabel.classList.add('opacity-0');
+                setTimeout(() => { syncLabel.classList.add('hidden'); syncLabel.classList.remove('opacity-0'); }, 300);
+            }, 3000);
+        } catch (error) {
+            console.error("Failed to sync:", error);
+            syncLabel.textContent = "ซิงค์ล้มเหลว!";
+            syncLabel.className = "text-xs font-medium px-2 py-1 rounded-full bg-red-100 text-red-700 ml-3 transition-opacity";
+        }
+    }
+
+    async function loadDataFromCloud(period) {
+        try {
+            const response = await fetch(`${GAS_WEBHOOK_URL}?action=load&period=${period}`);
+            const result = await response.json();
+            if (result && result.data) {
+                allData[period] = result.data;
+                // อัปเดตข้อมูลบนหน้าจอหากกำลังเปิดเดือนนั้นอยู่
+                if (currentPeriod === period) {
+                    records = JSON.parse(JSON.stringify(allData[period].records));
+                    currentFuelPrice = allData[period].fuelUnitPrice || 0;
+                    currentSignatures = { ...allData[period].signatures };
+                    
+                    document.getElementById('displayFuelPrice').innerText = currentFuelPrice;
+                    updateSignatureImages();
+                    renderTable();
+                }
+            }
+        } catch (error) {
+            console.error("No cloud data or failed to load:", error);
+        }
+    }
+
+    function switchPeriod() {
+        // 1. Save data of currently active period before switching
+        saveCurrentPeriodData();
+
+        // 2. Determine new period
+        const newPeriod = getSelectedPeriodKey();
+        currentPeriod = newPeriod;
+
+        const parts = newPeriod.split('-');
+        const y = parseInt(parts[0]);
+        const m = parseInt(parts[1]);
+        const daysInSelectedMonth = new Date(y, m + 1, 0).getDate();
+        numDays = daysInSelectedMonth;
+
+        // 3. Load or Initialize Data for new period
+        if (allData[currentPeriod]) {
+            records = JSON.parse(JSON.stringify(allData[currentPeriod].records));
+            currentFuelPrice = allData[currentPeriod].fuelUnitPrice || 0;
+            currentSignatures = { ...allData[currentPeriod].signatures };
+        } else {
+            records = [];
+            currentFuelPrice = 0;
+            currentSignatures = { checked: '', approved: '' };
+        }
+
+        // Ensure records array matches month days + 1 (for next month day 1)
+        for (let i = 0; i <= numDays; i++) {
+            if (!records[i]) {
+                // เพิ่ม locked: false เข้าไปในโครงสร้าง
+                records[i] = {day: i + 1, time: '', fuelMeter: '', waterMeter: '', tank1: '', tank2: '', recordBy: '', remark: '', correction: '', locked: false};
+            } else if (records[i].locked === undefined) {
+                records[i].locked = false; // รองรับข้อมูลเก่าที่ยังไม่มี locked
+            }
+        }
+
+        // 4. Update UI
+        document.getElementById('displayFuelPrice').innerText = currentFuelPrice;
+        updateSignatureImages();
+        renderTable();
+        
+        // 5. ดึงข้อมูลจาก Cloud (ถ้ามี) แบบเบื้องหลังเพื่อซิงค์ข้อมูล
+        loadDataFromCloud(newPeriod);
+    }
+
+    function initDropdowns() {
+        const monthSelect = document.getElementById('monthSelect');
+        const yearSelect = document.getElementById('yearSelect');
+        const startYear = 2026;
+        
+        yearSelect.innerHTML = '';
+        for (let i = startYear; i <= startYear + 10; i++) {
+            let option = document.createElement('option');
+            option.value = i;
+            yearSelect.appendChild(option);
+        }
+        
+        let currentY = new Date().getFullYear();
+        yearSelect.value = (currentY >= 2026 && currentY <= 2036) ? currentY : 2026;
+        monthSelect.value = new Date().getMonth(); // ใช้เดือนปัจจุบันแบบอัตโนมัติตามเวลาจริง
+        
+        updateDropdownsLang();
+    }
+
+    function updateDropdownsLang() {
+        const monthSelect = document.getElementById('monthSelect');
+        const yearSelect = document.getElementById('yearSelect');
+        
+        const currentMonthVal = monthSelect.value;
+        monthSelect.innerHTML = '';
+        t('months').forEach((m, index) => {
+            let option = document.createElement('option');
+            option.value = index;
+            option.text = m;
+            monthSelect.appendChild(option);
+        });
+        if(currentMonthVal !== '') monthSelect.value = currentMonthVal;
+
+        Array.from(yearSelect.options).forEach(opt => {
+            const ceYear = parseInt(opt.value);
+            opt.text = currentLang === 'th' ? (ceYear + 543) : ceYear;
+        });
+    }
+
+    function updateStaticText() {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (t(key)) el.innerHTML = t(key);
+        });
+    }
+
+    // ================= CORE LOGIC & RENDER =================
+
+    function getNextValue(dayIndex, field) {
+        for (let i = dayIndex + 1; i <= numDays; i++) {
+            if (records[i] && records[i][field] !== '') {
+                return parseInt(records[i][field], 10);
+            }
+        }
+        return null;
+    }
+
+    function calculateUsage(dayIndex, field) {
+        let current = records[dayIndex][field];
+        if (current === '') return '';
+        let next = getNextValue(dayIndex, field);
+        if (next === null) return '-'; 
+        return (next - parseInt(current, 10)).toString();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('data-rows');
+        tbody.innerHTML = '';
+
+        let totalFuelUsage = 0;
+        let totalWaterUsage = 0;
+        let totalFuelCost = 0;
+
+        for (let i = 0; i <= numDays; i++) {
+            const rec = records[i];
+            let fuelUsage = '';
+            let waterUsage = '';
+            let dailyFuelCost = '-';
+            
+            if (i < numDays) {
+                fuelUsage = calculateUsage(i, 'fuelMeter');
+                waterUsage = calculateUsage(i, 'waterMeter');
+                
+                let usageNum = parseInt(fuelUsage, 10);
+                if (!isNaN(usageNum)) {
+                    totalFuelUsage += usageNum;
+                    // Calculate Cost (No decimals)
+                    if (currentFuelPrice > 0) {
+                        let costVal = Math.round(usageNum * currentFuelPrice);
+                        dailyFuelCost = costVal.toLocaleString();
+                        totalFuelCost += costVal;
+                    } else {
+                        dailyFuelCost = '0';
+                    }
+                }
+
+                if (waterUsage !== '-' && waterUsage !== '') totalWaterUsage += parseInt(waterUsage, 10) || 0;
+            }
+            
+            const hasRemark = (rec.remark && rec.remark.trim() !== '') || (rec.correction && rec.correction.trim() !== '');
+            const wrenchColorClass = hasRemark ? 'text-red-600 hover:text-red-700 drop-shadow' : 'text-green-500 hover:text-green-700';
+            
+            const lockIcon = rec.locked 
+                ? `<svg class="w-5 h-5 text-red-600 hover:text-red-800" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>` 
+                : `<svg class="w-5 h-5 text-gray-400 hover:text-gray-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z"/></svg>`;
+
+            const tr = document.createElement('tr');
+            if (i === numDays) tr.classList.add('bg-orange-50');
+            
+            const displayDay = i === numDays ? `1<br><span class="text-[10px] text-orange-600 font-bold">(${t('nextMonth')})</span>` : rec.day;
+            const displayTime = rec.time || '';
+            const displayFuelM = rec.fuelMeter || '';
+            const displayWaterM = rec.waterMeter || '';
+            const displayTank1 = rec.tank1 || '';
+            const displayTank2 = rec.tank2 || '';
+            
+            let displayRecordBy = rec.recordBy;
+            if (displayRecordBy) {
+                const thIndex = recordByOptions.th.indexOf(displayRecordBy);
+                const enIndex = recordByOptions.en.indexOf(displayRecordBy);
+                if (currentLang === 'en' && thIndex !== -1) displayRecordBy = recordByOptions.en[thIndex];
+                else if (currentLang === 'th' && enIndex !== -1) displayRecordBy = recordByOptions.th[enIndex];
+            } else {
+                displayRecordBy = '';
+            }
+
+            tr.innerHTML = `
+                <td class="font-semibold text-gray-700 ${i === numDays ? 'bg-orange-100' : 'bg-gray-50'} py-1 leading-tight">${displayDay}</td>
+                <td class="editable-cell text-blue-700 font-bold" onclick="openEntryModal(${i}, 'time')">${displayTime}</td>
+                
+                <td class="editable-cell text-blue-700 font-bold" onclick="openEntryModal(${i}, 'fuelMeter')">${displayFuelM}</td>
+                <td class="readonly-cell font-bold text-gray-800">${fuelUsage}</td>
+                <td class="readonly-cell font-bold text-gray-800">${dailyFuelCost}</td>
+                
+                <td class="editable-cell text-blue-700 font-bold" onclick="openEntryModal(${i}, 'waterMeter')">${displayWaterM}</td>
+                <td class="readonly-cell font-bold text-gray-800">${waterUsage}</td>
+                
+                <td class="editable-cell text-blue-700 font-bold" onclick="openEntryModal(${i}, 'tank1')">${displayTank1}</td>
+                <td class="editable-cell text-blue-700 font-bold" onclick="openEntryModal(${i}, 'tank2')">${displayTank2}</td>
+                
+                <td class="editable-cell text-sm text-blue-700 font-bold" onclick="openEntryModal(${i}, 'recordBy')">${displayRecordBy}</td>
+                
+                <td class="p-1 bg-white whitespace-nowrap min-w-[90px]">
+                    <div class="flex items-center justify-center gap-2">
+                        <button onclick="openRemarkModal(${i})" class="transition-transform hover:scale-125 focus:outline-none" title="${t('labelRemark')}">
+                            <svg class="w-5 h-5 ${wrenchColorClass}" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287-.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <button onclick="notifyRowSave(${i})" class="transition-transform hover:scale-125 focus:outline-none text-blue-500 hover:text-blue-700" title="แจ้งเตือน/บันทึก">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        </button>
+                        <button onclick="toggleLock(${i})" class="transition-transform hover:scale-125 focus:outline-none" title="ล็อคข้อมูล">
+                            ${lockIcon}
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+        
+        // Add Total Row
+        const totalTr = document.createElement('tr');
+        totalTr.classList.add('bg-blue-50', 'border-t-2', 'border-blue-200');
+        totalTr.innerHTML = `
+            <td colspan="3" class="text-right font-bold py-2 pr-4 text-blue-800">${t('total')}</td>
+            <td class="font-bold text-red-600 text-lg bg-blue-100">${totalFuelUsage}</td>
+            <td class="font-bold text-red-600 text-lg bg-blue-100">${totalFuelCost.toLocaleString()}</td>
+            <td class="text-right font-bold py-2 pr-4 text-blue-800 border-l border-black">${t('total')}</td>
+            <td class="font-bold text-red-600 text-lg bg-blue-100">${totalWaterUsage}</td>
+            <td colspan="4" class="bg-gray-100"></td>
+        `;
+        tbody.appendChild(totalTr);
+    }
+
+    // ================= MODAL LOGIC =================
+
+    const fieldNames = {
+        'time': 'time',
+        'fuelMeter': 'meter',
+        'waterMeter': 'meter',
+        'tank1': 'tank1',
+        'tank2': 'tank2',
+        'recordBy': 'recordBy'
+    };
+
+    function showModal(id) {
+        const modal = document.getElementById(id);
+        const content = document.getElementById(id + 'Content');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            content.classList.remove('scale-95');
+            content.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeModal(id) {
+        const modal = document.getElementById(id);
+        const content = document.getElementById(id + 'Content');
+        content.classList.remove('scale-100');
+        content.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 200); 
+    }
+
+    function hideError() {
+        document.getElementById('modalError').classList.add('hidden');
+    }
+    
+    function showError(msgKey) {
+        const errBox = document.getElementById('modalError');
+        const errTxt = document.getElementById('modalErrorText');
+        errTxt.innerText = t(msgKey) || msgKey;
+        errBox.classList.remove('hidden');
+    }
+
+    function openEntryModal(dayIndex, field) {
+        if (records[dayIndex].locked) {
+            customAlert("errTitle", "ข้อมูลแถวนี้ถูกล็อคแล้ว ไม่สามารถแก้ไขได้ (Locked)");
+            return;
+        }
+
+        activeEdit = { dayIndex, field };
+        hideError();
+        
+        const rec = records[dayIndex];
+        
+        let fieldLabelKey = fieldNames[field];
+        let extraLabel = "";
+        if(field === 'fuelMeter') extraLabel = t('fuelCons') + " - ";
+        if(field === 'waterMeter') extraLabel = t('waterCons') + " - ";
+        
+        document.getElementById('modalTitle').innerHTML = t('modalEnterData') + " <span class='text-blue-700'>" + extraLabel + t(fieldLabelKey) + "</span>";
+        
+        if (dayIndex === numDays) {
+            document.getElementById('modalSubtitle').innerHTML = `วันที่ 1 <span class="text-orange-500">(${t('nextMonth')})</span>`;
+        } else {
+            document.getElementById('modalSubtitle').innerText = t('dayPrefix') + (dayIndex + 1);
+        }
+
+        document.getElementById('inputGroupNumber').classList.add('hidden');
+        document.getElementById('inputGroupTime').classList.add('hidden');
+        document.getElementById('inputGroupSelect').classList.add('hidden');
+
+        if (field === 'time') {
+            document.getElementById('inputGroupTime').classList.remove('hidden');
+            document.getElementById('inputValueTime').value = rec[field] || '';
+            setTimeout(() => document.getElementById('inputValueTime').focus(), 100);
+        } 
+        else if (field === 'recordBy') {
+            document.getElementById('inputGroupSelect').classList.remove('hidden');
+            document.getElementById('customNameInput').classList.add('hidden');
+            document.getElementById('customNameInput').value = '';
+
+            const select = document.getElementById('inputValueSelect');
+            select.innerHTML = `<option value="">-- ${t('recordBy')} --</option>`;
+            
+            const optionsArr = recordByOptions[currentLang];
+            const originalArr = recordByOptions['th']; 
+            
+            optionsArr.forEach((name, idx) => {
+                let opt = document.createElement('option');
+                opt.value = originalArr[idx]; 
+                opt.text = name;
+                if (rec[field] === originalArr[idx]) opt.selected = true;
+                select.appendChild(opt);
+            });
+            
+            customRecordNames.forEach(name => {
+                let opt = document.createElement('option');
+                opt.value = name; 
+                opt.text = name;
+                if (rec[field] === name) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            select.innerHTML += `<option value="other" class="text-gray-500 italic">-- อื่นๆ (Other) --</option>`;
+            select.innerHTML += `<option value="manage" class="text-blue-600 font-bold">✏️ ${t('manageNames')}</option>`;
+
+            setTimeout(() => document.getElementById('inputValueSelect').focus(), 100);
+        } 
+        else {
+            document.getElementById('inputGroupNumber').classList.remove('hidden');
+            document.getElementById('inputValueNumber').value = rec[field];
+            setTimeout(() => document.getElementById('inputValueNumber').focus(), 100);
+        }
+
+        showModal('entryModal');
+    }
+
+    function validateData(dayIndex, field, value) {
+        if (value === '') return null; 
+        
+        if (field === 'fuelMeter' || field === 'waterMeter') {
+            const num = parseInt(value, 10);
+            if (isNaN(num)) return 'errNotNum';
+            if (num < 0) return 'errNegative';
+
+            for (let i = dayIndex - 1; i >= 0; i--) {
+                if (records[i][field] !== '') {
+                    const prevVal = parseInt(records[i][field], 10);
+                    if (num < prevVal) return 'errLessPrev';
+                    break;
+                }
+            }
+            for (let i = dayIndex + 1; i <= numDays; i++) {
+                if (records[i] && records[i][field] !== '') {
+                    const nextVal = parseInt(records[i][field], 10);
+                    if (num > nextVal) return 'errMoreNext';
+                    break;
+                }
+            }
+        }
+        else if (field.includes('tank')) {
+            const num = parseInt(value, 10);
+            if (isNaN(num)) return 'errNotNum';
+            if (num < 0) return 'errNegative';
+        }
+        return null; 
+    }
+
+    function saveData() {
+        const { dayIndex, field } = activeEdit;
+        let value = '';
+
+        if (field === 'time') {
+            value = document.getElementById('inputValueTime').value;
+        } else if (field === 'recordBy') {
+            value = document.getElementById('inputValueSelect').value;
+            if (value === 'other') {
+                value = document.getElementById('customNameInput').value.trim();
+                if (value && !customRecordNames.includes(value) && !recordByOptions['th'].includes(value)) {
+                    customRecordNames.push(value); 
+                }
+            } else if (value === 'manage') return;
+        } else {
+            let rawVal = document.getElementById('inputValueNumber').value;
+            value = rawVal === '' ? '' : parseInt(rawVal, 10).toString();
+        }
+
+        const errorKey = validateData(dayIndex, field, value);
+        if (errorKey) {
+            showError(errorKey);
+            if(navigator.vibrate) navigator.vibrate(200); 
+            return;
+        }
+
+        records[dayIndex][field] = value;
+        saveCurrentPeriodData(); // Auto save
+        closeModal('entryModal');
+        renderTable();
+    }
+
+    function clearCurrentData() {
+        const { dayIndex, field } = activeEdit;
+        records[dayIndex][field] = '';
+        saveCurrentPeriodData();
+        closeModal('entryModal');
+        renderTable();
+    }
+
+    function openRemarkModal(dayIndex) {
+        activeEdit = { dayIndex, field: 'remark' };
+        const rec = records[dayIndex];
+        
+        document.getElementById('remarkModalTitle').innerText = t('remarkSection').replace(':', '');
+        document.getElementById('remarkModalSubtitle').innerText = t('dayPrefix') + (dayIndex + 1);
+        
+        document.getElementById('remarkText').value = rec.remark || '';
+        document.getElementById('correctionText').value = rec.correction || '';
+        
+        showModal('remarkModal');
+    }
+    
+    function saveRemark() {
+        const { dayIndex } = activeEdit;
+        records[dayIndex].remark = document.getElementById('remarkText').value;
+        records[dayIndex].correction = document.getElementById('correctionText').value;
+        saveCurrentPeriodData();
+        closeModal('remarkModal');
+        renderTable();
+    }
+
+    function toggleLock(dayIndex) {
+        records[dayIndex].locked = !records[dayIndex].locked;
+        saveCurrentPeriodData();
+        renderTable();
+    }
+
+    function notifyRowSave(dayIndex) {
+        const rec = records[dayIndex];
+        const m = document.getElementById('monthSelect');
+        const y = document.getElementById('yearSelect');
+        const monthText = m.options[m.selectedIndex].text;
+        const yearText = y.options[y.selectedIndex].text;
+
+        let fuelUsage = calculateUsage(dayIndex, 'fuelMeter');
+        let waterUsage = calculateUsage(dayIndex, 'waterMeter');
+        let cost = 0;
+        if (fuelUsage !== '-' && fuelUsage !== '') {
+            cost = Math.round(parseInt(fuelUsage, 10) * currentFuelPrice);
+        }
+
+        const payload = {
+            action: 'notify_row',
+            rowObj: {
+                day: dayIndex === numDays ? "1 (เดือนถัดไป)" : (dayIndex + 1),
+                time: rec.time,
+                fuelMeter: rec.fuelMeter,
+                fuelUsage: fuelUsage,
+                cost: cost.toLocaleString(),
+                waterMeter: rec.waterMeter,
+                waterUsage: waterUsage,
+                tank1: rec.tank1,
+                tank2: rec.tank2,
+                recordBy: rec.recordBy,
+                remark: rec.remark,
+                correction: rec.correction,
+                monthText: monthText,
+                yearText: yearText,
+                action: rec.time || rec.fuelMeter || rec.waterMeter ? "เพิ่ม/แก้ไขข้อมูล" : "ตรวจสอบข้อมูล"
+            }
+        };
+
+        const btn = event.currentTarget;
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = `<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+        
+        fetch(GAS_WEBHOOK_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        }).then(() => {
+            setTimeout(() => { btn.innerHTML = origHtml; }, 500);
+            customAlert("sysTitle", "แจ้งเตือนการบันทึกไปยัง LINE สำเร็จ");
+        }).catch(err => {
+            btn.innerHTML = origHtml;
+            console.error(err);
+        });
+    }
+
+    function clearRemarkData() {
+        document.getElementById('remarkText').value = '';
+        document.getElementById('correctionText').value = '';
+    }
+
+    // ================= FUEL PRICE =================
+
+    function openPriceModal() {
+        document.getElementById('inputFuelPrice').value = currentFuelPrice || '';
+        showModal('priceModal');
+        setTimeout(() => document.getElementById('inputFuelPrice').focus(), 100);
+    }
+
+    function saveFuelPrice() {
+        let val = parseFloat(document.getElementById('inputFuelPrice').value);
+        if(isNaN(val) || val < 0) val = 0;
+        currentFuelPrice = val;
+        document.getElementById('displayFuelPrice').innerText = currentFuelPrice;
+        saveCurrentPeriodData();
+        closeModal('priceModal');
+        renderTable();
+    }
+
+    // ================= SIGNATURE PAD =================
+
+    let sigCanvas, sigCtx, isDrawing = false;
+    
+    function initSignatureCanvas() {
+        sigCanvas = document.getElementById('sigCanvas');
+        sigCtx = sigCanvas.getContext('2d');
+        
+        // Resize canvas correctly
+        function resize() {
+            const rect = sigCanvas.parentElement.getBoundingClientRect();
+            sigCanvas.width = rect.width;
+            sigCanvas.height = rect.height;
+        }
+        window.addEventListener('resize', resize);
+        resize(); // initial size
+
+        sigCtx.lineWidth = 3;
+        sigCtx.lineCap = 'round';
+        sigCtx.strokeStyle = '#2563eb'; // blue-600
+
+        // Mouse Events
+        sigCanvas.addEventListener('mousedown', startPos);
+        sigCanvas.addEventListener('mouseup', endPos);
+        sigCanvas.addEventListener('mousemove', draw);
+        sigCanvas.addEventListener('mouseout', endPos);
+
+        // Touch Events
+        sigCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startPos(e.touches[0]); }, {passive: false});
+        sigCanvas.addEventListener('touchend', (e) => { e.preventDefault(); endPos(); }, {passive: false});
+        sigCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); }, {passive: false});
+    }
+
+    function startPos(e) {
+        isDrawing = true;
+        draw(e);
+    }
+    
+    function endPos() {
+        isDrawing = false;
+        sigCtx.beginPath();
+    }
+    
+    function draw(e) {
+        if (!isDrawing) return;
+        const rect = sigCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        sigCtx.lineTo(x, y);
+        sigCtx.stroke();
+        sigCtx.beginPath();
+        sigCtx.moveTo(x, y);
+    }
+
+    function openSignatureModal(type) {
+        activeSigType = type; // 'checked' or 'approved'
+        clearSignatureCanvas(); // Reset canvas for new drawing
+        showModal('signatureModal');
+        // Need brief timeout to ensure canvas is visible for correct drawing coordinates
+        setTimeout(() => {
+            const rect = sigCanvas.parentElement.getBoundingClientRect();
+            sigCanvas.width = rect.width;
+            sigCanvas.height = rect.height;
+            sigCtx.lineWidth = 3;
+            sigCtx.lineCap = 'round';
+            sigCtx.strokeStyle = '#2563eb';
+        }, 50);
+    }
+
+    function clearSignatureCanvas() {
+        sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+    }
+
+    function saveSignature() {
+        const dataUrl = sigCanvas.toDataURL('image/png');
+        currentSignatures[activeSigType] = dataUrl;
+        saveCurrentPeriodData();
+        updateSignatureImages();
+        closeModal('signatureModal');
+    }
+
+    function updateSignatureImages() {
+        ['checked', 'approved'].forEach(type => {
+            const imgEl = document.getElementById(`img-${type}`);
+            const hintEl = document.getElementById(`hint-${type}`);
+            if (currentSignatures[type]) {
+                imgEl.src = currentSignatures[type];
+                imgEl.classList.remove('hidden');
+                hintEl.classList.add('hidden');
+            } else {
+                imgEl.src = '';
+                imgEl.classList.add('hidden');
+                hintEl.classList.remove('hidden');
+            }
+        });
+    }
+
+
+    // ================= HELPERS & UTILS =================
+    
+    function logoutApp() {
+        document.getElementById('mainView').classList.add('hidden');
+        document.getElementById('dashboardView').classList.add('hidden');
+        document.getElementById('welcomeView').classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function verifyExcelLogin() {
+        const id = document.getElementById('excelId').value.trim().toUpperCase();
+        const pass = document.getElementById('excelPass').value.trim().toUpperCase();
+        
+        if (id === 'PEUT' && pass === 'ADMIN444') {
+            document.getElementById('excelError').classList.add('hidden');
+            document.getElementById('excelId').value = '';
+            document.getElementById('excelPass').value = '';
+            closeModal('excelModal');
+            
+            // เปลี่ยนลิงก์ด้านล่างให้เป็น URL ของ Google Sheet ที่คุณใช้งานจริง
+            window.open("https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit", "_blank"); 
+        } else {
+            document.getElementById('excelError').classList.remove('hidden');
+        }
+    }
+
+    function generateTimeSelectOptions() {
+        const timeSelect = document.getElementById('inputValueTime');
+        timeSelect.innerHTML = `<option value="">-- ${t('time')} --</option>`;
+        for(let h=0; h<24; h++) {
+            for(let m=0; m<60; m+=30) {
+                let hh = h.toString().padStart(2, '0');
+                let mm = m.toString().padStart(2, '0');
+                let timeStr = `${hh}.${mm} น.`;
+                let option = document.createElement('option');
+                option.value = timeStr;
+                option.text = timeStr;
+                timeSelect.appendChild(option);
+            }
+        }
+    }
+
+    function handleSelectChange() {
+        const select = document.getElementById('inputValueSelect');
+        const customInput = document.getElementById('customNameInput');
+        if (select.value === 'manage') {
+            closeModal('entryModal');
+            renderManageNamesModal();
+            showModal('namesModal');
+            select.value = '';
+        } else if (select.value === 'other') {
+            customInput.classList.remove('hidden');
+            customInput.focus();
+        } else {
+            customInput.classList.add('hidden');
+        }
+    }
+
+    function renderManageNamesModal() {
+        const list = document.getElementById('customNamesList');
+        list.innerHTML = '';
+        if(customRecordNames.length === 0) {
+            list.innerHTML = '<li class="p-3 text-center text-gray-400 text-sm">ไม่มีรายชื่อเพิ่มเติม</li>';
+            return;
+        }
+        customRecordNames.forEach((name, idx) => {
+            list.innerHTML += `
+                <li class="flex justify-between items-center p-3 hover:bg-gray-50">
+                    <span class="text-gray-700 font-medium text-sm">${name}</span>
+                    <button onclick="deleteCustomName(${idx})" class="text-red-500 hover:text-red-700 p-1 bg-red-50 rounded">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                    </button>
+                </li>
+            `;
+        });
+    }
+
+    function addNewName() {
+        const input = document.getElementById('newNameInput');
+        const val = input.value.trim();
+        if(val && !customRecordNames.includes(val) && !recordByOptions['th'].includes(val)) {
+            customRecordNames.push(val);
+            input.value = '';
+            renderManageNamesModal();
+        }
+    }
+
+    function deleteCustomName(idx) {
+        customRecordNames.splice(idx, 1);
+        renderManageNamesModal();
+    }
+
+    function startDictation() {
+        if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = currentLang === 'th' ? "th-TH" : "en-US";
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            const inputField = document.getElementById('inputValueNumber');
+            inputField.placeholder = "กำลังฟัง... (Listening...)";
+
+            recognition.start();
+
+            recognition.onresult = function(event) {
+                const speechResult = event.results[0][0].transcript;
+                const numbersOnly = speechResult.replace(/\D/g, ''); 
+                if(numbersOnly) inputField.value = numbersOnly;
+                inputField.placeholder = "0";
+            };
+            recognition.onspeechend = function() {
+                recognition.stop();
+                inputField.placeholder = "0";
+            };
+            recognition.onerror = function(event) {
+                inputField.placeholder = "0";
+            };
+        } else {
+            customAlert("errTitle", "เบราว์เซอร์ไม่รองรับพิมพ์ด้วยเสียง (Speech Recognition not supported)");
+        }
+    }
+
+    function customAlert(titleKey, message) {
+        document.getElementById('alertTitle').innerText = t(titleKey) || titleKey;
+        document.getElementById('alertMessage').innerText = message;
+        showModal('alertModal');
+    }
+
+    // ================= DASHBOARD & ANALYTICS =================
+    let dashChart = null;
+
+    function toggleView(view) {
+        if (view === 'dashboard') {
+            document.getElementById('mainView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('hidden');
+            
+            // Sync dashboard filters with main view state initially
+            populateDashboardFilters();
+            document.getElementById('dashYear').value = document.getElementById('yearSelect').value;
+            document.getElementById('dashMonth').value = document.getElementById('monthSelect').value;
+            
+            renderDashboard();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('mainView').classList.remove('hidden');
+        }
+    }
+
+    function populateDashboardFilters() {
+        const dYear = document.getElementById('dashYear');
+        const dMonth = document.getElementById('dashMonth');
+        
+        dYear.innerHTML = document.getElementById('yearSelect').innerHTML;
+        
+        dMonth.innerHTML = '';
+        t('months').forEach((m, idx) => {
+            let opt = document.createElement('option');
+            opt.value = idx;
+            opt.text = m;
+            dMonth.appendChild(opt);
+        });
+    }
+
+    function renderDashboard() {
+        const type = document.getElementById('dashType').value;
+        const year = document.getElementById('dashYear').value;
+        const month = document.getElementById('dashMonth').value;
+        
+        const monthContainer = document.getElementById('dashMonthContainer');
+        if (type === 'daily') monthContainer.classList.remove('hidden');
+        else monthContainer.classList.add('hidden');
+
+        const targetFuelVal = parseFloat(document.getElementById('dashTargetFuel').value) || 0;
+        const targetWaterVal = parseFloat(document.getElementById('dashTargetWater').value) || 0;
+
+        let labels = [];
+        let dataFuel = [];
+        let dataWater = [];
+        let dataCost = [];
+        let dataUnitPrice = [];
+        let targetFuelLine = [];
+        let targetWaterLine = [];
+        
+        let sumFuel = 0;
+        let sumWater = 0;
+        let sumCost = 0;
+
+        if (type === 'monthly') {
+            // ดึงข้อมูลรวมแต่ละเดือน
+            labels = t('months');
+            for (let m = 0; m < 12; m++) {
+                const pKey = `${year}-${m}`;
+                let mFuel = 0, mWater = 0, mCost = 0;
+                
+                if (allData[pKey]) {
+                    const price = allData[pKey].fuelUnitPrice || 0;
+                    const recs = allData[pKey].records;
+                    const days = new Date(year, m + 1, 0).getDate();
+                    
+                    for (let d = 0; d < days; d++) {
+                        let curFuel = parseInt(recs[d]?.fuelMeter);
+                        let nextFuel = parseInt(recs[d+1]?.fuelMeter);
+                        if (!isNaN(curFuel) && !isNaN(nextFuel)) {
+                            let diff = nextFuel - curFuel;
+                            mFuel += diff;
+                            mCost += diff * price;
+                        }
+                        
+                        let curWater = parseInt(recs[d]?.waterMeter);
+                        let nextWater = parseInt(recs[d+1]?.waterMeter);
+                        if (!isNaN(curWater) && !isNaN(nextWater)) {
+                            mWater += (nextWater - curWater);
+                        }
+                    }
+                }
+                dataFuel.push(mFuel);
+                dataWater.push(mWater);
+                dataCost.push(Math.round(mCost));
+                dataUnitPrice.push(allData[pKey] ? (allData[pKey].fuelUnitPrice || 0) : 0);
+                
+                // สำหรับรายเดือน เป้าหมาย = เป้าหมายต่อวัน x จำนวนวันในเดือนนั้น
+                const daysInM = new Date(year, m + 1, 0).getDate();
+                targetFuelLine.push(targetFuelVal * daysInM);
+                targetWaterLine.push(targetWaterVal * daysInM);
+
+                sumFuel += mFuel;
+                sumWater += mWater;
+                sumCost += Math.round(mCost);
+            }
+        } else {
+            // ดึงข้อมูลรายวันของเดือนที่เลือก
+            const pKey = `${year}-${month}`;
+            const days = new Date(year, parseInt(month) + 1, 0).getDate();
+            const price = allData[pKey] ? (allData[pKey].fuelUnitPrice || 0) : 0;
+            const recs = allData[pKey] ? allData[pKey].records : [];
+            
+            for (let d = 0; d < days; d++) {
+                labels.push(d + 1);
+                let dFuel = 0, dWater = 0, dCost = 0;
+                
+                let curFuel = parseInt(recs[d]?.fuelMeter);
+                let nextFuel = parseInt(recs[d+1]?.fuelMeter);
+                if (!isNaN(curFuel) && !isNaN(nextFuel)) {
+                    dFuel = nextFuel - curFuel;
+                    dCost = dFuel * price;
+                }
+                
+                let curWater = parseInt(recs[d]?.waterMeter);
+                let nextWater = parseInt(recs[d+1]?.waterMeter);
+                if (!isNaN(curWater) && !isNaN(nextWater)) {
+                    dWater = nextWater - curWater;
+                }
+                
+                dataFuel.push(dFuel);
+                dataWater.push(dWater);
+                dataCost.push(Math.round(dCost));
+                dataUnitPrice.push(price);
+                targetFuelLine.push(targetFuelVal);
+                targetWaterLine.push(targetWaterVal);
+                
+                sumFuel += dFuel;
+                sumWater += dWater;
+                sumCost += Math.round(dCost);
+            }
+        }
+
+        // Update Summary Cards
+        document.getElementById('dashTotalFuel').innerHTML = `${sumFuel.toLocaleString()} <span class="text-sm md:text-base font-normal">ลิตร</span>`;
+        document.getElementById('dashTotalWater').innerHTML = `${sumWater.toLocaleString()} <span class="text-sm md:text-base font-normal">คิว</span>`;
+        document.getElementById('dashTotalCost').innerHTML = `${sumCost.toLocaleString()} <span class="text-sm md:text-base font-normal">บาท</span>`;
+
+        // Render Chart
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        if (dashChart) {
+            dashChart.destroy();
+        }
+        
+        dashChart = new Chart(ctx, {
+            type: type === 'monthly' ? 'line' : 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'น้ำมัน (ลิตร)',
+                        data: dataFuel,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(37, 99, 235, 1)',
+                        borderWidth: 2,
+                        borderRadius: type === 'daily' ? 4 : 0,
+                        tension: 0.3,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'เป้าหมายน้ำมัน',
+                        data: targetFuelLine,
+                        type: 'line',
+                        borderColor: 'rgba(239, 68, 68, 0.8)', // Red
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 0,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'น้ำป้อน (คิว)',
+                        data: dataWater,
+                        backgroundColor: 'rgba(6, 182, 212, 0.7)',
+                        borderColor: 'rgba(8, 145, 178, 1)',
+                        borderWidth: 2,
+                        borderRadius: type === 'daily' ? 4 : 0,
+                        tension: 0.3,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'เป้าหมายน้ำ',
+                        data: targetWaterLine,
+                        type: 'line',
+                        borderColor: 'rgba(249, 115, 22, 0.8)', // Orange
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 0,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'ต้นทุนรวม (บาท)',
+                        data: dataCost,
+                        backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                        borderColor: 'rgba(22, 163, 74, 1)',
+                        borderWidth: 2,
+                        borderRadius: type === 'daily' ? 4 : 0,
+                        tension: 0.3,
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: 'ราคาต่อหน่วย (บาท)',
+                        data: dataUnitPrice,
+                        type: 'line',
+                        borderColor: 'rgba(168, 85, 247, 1)', // Purple
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        grid: { display: false }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'ปริมาณ (ลิตร/คิว)', font: { family: 'Sarabun', weight: 'bold' } },
+                        border: { display: false }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'ต้นทุน (บาท)', font: { family: 'Sarabun', weight: 'bold' } },
+                        grid: { drawOnChartArea: false },
+                        border: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        position: 'top',
+                        labels: { font: { family: 'Sarabun' }, boxWidth: 12 }
+                    },
+                    tooltip: {
+                        titleFont: { family: 'Sarabun', size: 14 },
+                        bodyFont: { family: 'Sarabun', size: 13 }
+                    }
+                }
+            }
+        });
+    }
+
+    // ================= SPECIAL COMMANDS & PRINT PDF =================
+    
+    // พิมพ์ PDF เปิดหน้าต่างใหม่
+    function printPDF() {
+        // อัปเดตข้อมูล textarea ให้เป็น innerHTML เพื่อให้ clone DOM ไปแสดงได้ถูกต้อง
+        document.querySelectorAll('textarea').forEach(ta => {
+            ta.innerHTML = ta.value;
+        });
+
+        const printWin = window.open('', '_blank');
+        if (!printWin) {
+            alert('กรุณาอนุญาต Pop-ups สำหรับเว็บไซต์นี้เพื่อสามารถเปิดหน้าต่างพิมพ์ PDF ได้');
+            return;
+        }
+
+        const originalContent = document.getElementById('mainView').innerHTML;
+        printWin.document.write(`
+            <!DOCTYPE html>
+            <html lang="th">
+            <head>
+                <title>Print PDF - Record of fuel oil consumption</title>
+                <script src="https://cdn.tailwindcss.com"><\/script>
+                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+                <style>
+                    @page { 
+                        size: A4 portrait; 
+                        margin: 8mm; /* ลดขอบกระดาษลงเพื่อให้มีพื้นที่เพิ่ม */
+                    }
+                    body { 
+                        font-family: 'Sarabun', sans-serif; 
+                        background-color: #fff; 
+                        margin: 0; 
+                        padding: 0; 
+                        -webkit-print-color-adjust: exact !important; 
+                        print-color-adjust: exact !important; 
+                    }
+                    .form-container { width: 100%; max-width: 100%; padding: 0; box-shadow: none; margin: 0; border: none; }
+                    
+                    /* ปรับขนาดตารางและฟอนต์ให้พอดีหน้า A4 ทุกองค์ประกอบ */
+                    table { width: 100%; border-collapse: collapse; border: 2px solid #000; table-layout: auto; }
+                    th, td { border: 1px solid #000; text-align: center; vertical-align: middle; padding: 2px 4px !important; font-size: 11px !important; }
+                    th { background-color: #f8fafc !important; font-size: 11px !important; }
+                    
+                    /* บังคับย่อขนาดตัวอักษรของคลาสต่างๆ ของ Tailwind ที่ติดมากับ HTML */
+                    .text-xs { font-size: 9px !important; line-height: 1.2 !important; }
+                    .text-sm { font-size: 10px !important; line-height: 1.3 !important; }
+                    .text-base { font-size: 11px !important; line-height: 1.3 !important; }
+                    .text-lg { font-size: 13px !important; line-height: 1.4 !important; }
+                    .text-xl, h2 { font-size: 14px !important; line-height: 1.4 !important; }
+                    
+                    /* ลดช่องว่าง padding/margin ให้ประหยัดพื้นที่แนวตั้ง */
+                    .p-2, .p-3, .p-4 { padding: 4px !important; }
+                    .mb-4, .my-1 { margin-bottom: 4px !important; margin-top: 4px !important; }
+                    .h-20 { height: auto !important; max-height: 50px !important; } /* ลดขนาดความสูงโลโก้ */
+                    
+                    .no-print, .marquee-footer { display: none !important; }
+                    
+                    /* Force Tailwind Print Colors */
+                    .bg-gray-100 { background-color: #f3f4f6 !important; }
+                    .bg-gray-200 { background-color: #e5e7eb !important; }
+                    .bg-orange-100 { background-color: #ffedd5 !important; }
+                    .bg-orange-50 { background-color: #fff7ed !important; }
+                    .bg-blue-50 { background-color: #eff6ff !important; }
+                    .bg-blue-100 { background-color: #dbeafe !important; }
+                    .text-red-600 { color: #dc2626 !important; }
+                    .text-blue-800 { color: #1e40af !important; }
+                    .text-orange-600 { color: #ea580c !important; }
+                    
+                    /* ป้องกันการตัดหน้ากระดาษกลางแถวตาราง */
+                    thead { display: table-header-group; }
+                    tfoot { display: table-footer-group; }
+                    tr { page-break-inside: avoid; }
+                    
+                    /* จัดกล่องลายเซ็นและช่องหมายเหตุให้กะทัดรัด */
+                    textarea { font-size: 11px !important; padding: 2px !important; border: 1px dashed #ccc !important; }
+                    .w-80 { width: 50% !important; min-width: 250px !important; }
+                </style>
+            </head>
+            <body>
+                <div class="form-container">
+                    ${originalContent}
+                </div>
+            </body>
+            </html>
+        `);
+        printWin.document.close();
+    }
+
+    // คำสั่งลับ
+    let keyBuffer = '';
+    document.addEventListener('keydown', (e) => {
+        // ไม่สนใจการพิมพ์ใน textarea หรือ input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        keyBuffer += e.key;
+        if (keyBuffer.length > 20) keyBuffer = keyBuffer.slice(-20);
+        
+        if (keyBuffer.toLowerCase().includes('!totalmonth')) {
+            keyBuffer = '';
+            showNowTotals('month');
+        }
+        else if (keyBuffer.toLowerCase().includes('!totalyear')) {
+            keyBuffer = '';
+            showNowTotals('year');
+        }
+        else if (keyBuffer.toLowerCase().includes('!adminut')) {
+            keyBuffer = '';
+            customAlert("sysTitle", "กำลังส่งข้อความแจ้งเตือนทดสอบเข้า LINE กลุ่ม...");
+            fetch(GAS_WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                    action: 'notify_admin',
+                    message: "🤖 [บอท] ระบบ Utility แจ้งเตือน: เริ่มทำงานและพร้อมแจ้งเตือนในกลุ่มนี้แล้วครับ!"
+                })
+            }).catch(err => console.error("Line notify error:", err));
+        }
+    });
+
+    function showNowTotals(mode) {
+        let sumFuel = 0;
+        let sumWater = 0;
+        let sumCost = 0;
+        let titleLabel = '';
+        
+        const m = document.getElementById('monthSelect');
+        const y = document.getElementById('yearSelect');
+        const monthText = m.options[m.selectedIndex].text;
+        const yearText = y.options[y.selectedIndex].text;
+        const yearVal = y.value;
+
+        if (mode === 'month') {
+            titleLabel = `ภาพรวมเดือน ${monthText} ปี ${yearText}`;
+            for (let i = 0; i < numDays; i++) {
+                let fUsage = calculateUsage(i, 'fuelMeter');
+                if (fUsage && fUsage !== '-') {
+                    let usageNum = parseInt(fUsage, 10);
+                    sumFuel += usageNum;
+                    sumCost += Math.round(usageNum * currentFuelPrice);
+                }
+                
+                let wUsage = calculateUsage(i, 'waterMeter');
+                if (wUsage && wUsage !== '-') {
+                    sumWater += parseInt(wUsage, 10);
+                }
+            }
+        } else if (mode === 'year') {
+            titleLabel = `ภาพรวมทั้งปี ${yearText}`;
+            for (let mIndex = 0; mIndex < 12; mIndex++) {
+                const pKey = `${yearVal}-${mIndex}`;
+                if (allData[pKey]) {
+                    const price = allData[pKey].fuelUnitPrice || 0;
+                    const recs = allData[pKey].records;
+                    const days = new Date(yearVal, mIndex + 1, 0).getDate();
+                    
+                    for (let d = 0; d < days; d++) {
+                        let curFuel = parseInt(recs[d]?.fuelMeter);
+                        let nextFuel = parseInt(recs[d+1]?.fuelMeter);
+                        if (!isNaN(curFuel) && !isNaN(nextFuel)) {
+                            let diff = nextFuel - curFuel;
+                            sumFuel += diff;
+                            sumCost += diff * price;
+                        }
+                        
+                        let curWater = parseInt(recs[d]?.waterMeter);
+                        let nextWater = parseInt(recs[d+1]?.waterMeter);
+                        if (!isNaN(curWater) && !isNaN(nextWater)) {
+                            sumWater += (nextWater - curWater);
+                        }
+                    }
+                }
+            }
+        }
+        
+        document.getElementById('nowMonthLabel').innerText = titleLabel;
+        document.getElementById('nowFuel').innerText = sumFuel.toLocaleString();
+        document.getElementById('nowWater').innerText = sumWater.toLocaleString();
+        document.getElementById('nowCost').innerText = Math.round(sumCost).toLocaleString();
+        
+        showModal('nowModal');
+        
+        // สร้างข้อความและส่งไปแจ้งเตือนใน LINE
+        const lineMsg = `📊 สรุปยอดใช้งาน (${mode === 'month' ? '!totalmonth' : '!totalyear'})\n${titleLabel}\n⛽ น้ำมันสะสม: ${sumFuel.toLocaleString()} ลิตร\n💧 น้ำป้อนสะสม: ${sumWater.toLocaleString()} คิว\n💰 ต้นทุนรวม: ${Math.round(sumCost).toLocaleString()} บาท`;
+        
+        fetch(GAS_WEBHOOK_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'notify_total',
+                message: lineMsg
+            })
+        }).catch(err => console.error("Line notify error:", err));
+    }
+
+</script>
+</body>
+</html>
